@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>متجري الاحترافي</title>
+<style>
+:root{
+  --mainBtnColor:#ff9800;
+  --sidebarColor:#00bcd4;
+}
+body{margin:0;font-family:Arial;background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);color:white;}
+header{text-align:center;padding:15px;font-size:26px;background:#000;position:sticky;top:0;z-index:100;}
+#mainBar{display:flex;justify-content:center;gap:10px;margin:10px 0;flex-wrap:wrap;}
+#mainBar button{padding:8px 15px;border:none;border-radius:5px;cursor:pointer;font-weight:bold;background:var(--mainBtnColor);color:white;}
+#searchBar{width:90%;max-width:400px;display:block;margin:5px auto 15px auto;padding:8px;border-radius:6px;border:none;}
+.products{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px;padding:10px;}
+.card{background:#ffffff10;backdrop-filter:blur(10px);padding:10px;border-radius:12px;text-align:center;}
+.card img{width:100%;height:180px;object-fit:cover;border-radius:8px;}
+button.mainBtn{background:#00c6ff;border:none;padding:8px;margin-top:5px;width:100%;border-radius:6px;cursor:pointer;color:white;font-weight:bold;}
+#visitors{text-align:center;margin:10px 0;font-size:18px;}
+#reviews{padding:10px;background:#0005;margin:10px;border-radius:10px;}
+.review{background:#ffffff10;padding:8px;margin:5px 0;border-radius:6px;display:flex;align-items:center;gap:10px;}
+.stars span{color:gold;font-size:18px;}
+.admin{display:none;position:fixed;top:0;left:0;width:350px;height:100%;background:#000;padding:15px;overflow:auto;z-index:999;}
+input, select, textarea{width:100%;padding:6px;margin:5px 0;border-radius:5px;border:none;}
+.closeBtn{background:red;margin-top:10px;}
+#adminBtn{position:fixed;top:10px;left:10px;background:var(--mainBtnColor);padding:10px;border-radius:5px;font-weight:bold;cursor:pointer;z-index:1000;}
+#liveOrdersNotice{position:fixed;bottom:20px;right:20px;background:orange;padding:10px;border-radius:8px;font-weight:bold;z-index:9999;display:none;}
+#customerNotice{position:fixed;bottom:20px;left:20px;background:#ff9800;padding:15px 20px;border-radius:10px;color:white;font-weight:bold;cursor:pointer;display:none;z-index:9999;box-shadow:0 4px 10px rgba(0,0,0,0.3);}
+#hamburger{position:fixed;top:10px;right:10px;font-size:30px;cursor:pointer;z-index:1000;color:var(--mainBtnColor);}
+#sidebar{position:fixed;top:0;right:-300px;width:250px;height:100%;background:var(--sidebarColor);padding:20px;box-shadow:-3px 0 10px #000a;transition:right 0.3s;z-index:999;}
+#sidebar.show{right:0;}
+#sidebar button{margin-top:20px;padding:8px;width:100%;border:none;border-radius:5px;background:var(--mainBtnColor);color:white;cursor:pointer;}
+.categorySidebarBox{padding:10px;margin:5px 0;background:var(--mainBtnColor);color:white;border-radius:5px;cursor:pointer;text-align:center;}
+</style>
+</head>
+<body>
+
+<header id="storeName">متجري الاحترافي</header>
+<div id="hamburger" onclick="toggleSidebar()">☰</div>
+<div id="sidebar">
+  <h3>الأقسام</h3>
+  <div id="sidebarCategories"></div>
+  <button onclick="toggleSidebar()">إغلاق</button>
+</div>
+
+<div id="mainBar">
+<button onclick="render()">الرئيسية</button>
+<button onclick="document.getElementById('searchBar').focus()">بحث</button>
+</div>
+
+<input type="text" id="searchBar" placeholder="ابحث عن المنتجات..." oninput="searchProducts()">
+
+<div id="visitors">الزوار الحاليين: 0</div>
+
+<div class="products" id="products"></div>
+
+<div id="reviews">
+<h3>آراء العملاء</h3>
+<div id="reviewList"></div>
+<input id="reviewName" placeholder="اسمك">
+<select id="reviewGender">
+<option value="male">ذكر</option>
+<option value="female">أنثى</option>
+</select>
+<label>التقييم:
+<select id="reviewStars">
+<option value="1">1 ⭐</option>
+<option value="2">2 ⭐⭐</option>
+<option value="3">3 ⭐⭐⭐</option>
+<option value="4">4 ⭐⭐⭐⭐</option>
+<option value="5" selected>5 ⭐⭐⭐⭐⭐</option>
+</select>
+</label>
+<textarea id="newReview" placeholder="اكتب رأيك هنا..."></textarea>
+<button onclick="addReview()">إضافة رأي</button>
+</div>
+
+<div id="adminBtn" onclick="adminLogin()">لوحة المالك</div>
+
+<div class="admin" id="adminPanel">
+<h3>لوحة تحكم المالك</h3>
+<!-- ألوان، أقسام، منتجات، حذف، إشعارات، كود خصم -->
+<button class="closeBtn" onclick="closeAdmin()">إغلاق</button>
+</div>
+
+<div id="liveOrdersNotice"></div>
+<div id="customerNotice"></div>
+
+<script type="module">
+// ---------------- Firebase ----------------
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-storage.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB263iXL917A_csEG7JupN9SkLLx5NoiGQ",
+  authDomain: "alpha-store-3e25b.firebaseapp.com",
+  projectId: "alpha-store-3e25b",
+  storageBucket: "alpha-store-3e25b.appspot.com",
+  messagingSenderId: "1006674563827",
+  appId: "1:1006674563827:web:f45361b229578261881d86",
+  measurementId: "G-YR7KM2NYRF"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const storage = getStorage(app);
+
+// ---------------- متغيرات ----------------
+let password = "112211";
+let visitorsCount = Math.floor(Math.random()*10 + 5);
+let liveOrdersCount = 0;
+
+// ---------------- واجهة ----------------
+function toggleSidebar(){ document.getElementById("sidebar").classList.toggle("show"); }
+
+// ---------------- عرض الزوار ----------------
+function updateVisitors(){
+  visitorsCount += Math.floor(Math.random()*3 -1);
+  if(visitorsCount<1) visitorsCount=1;
+  document.getElementById("visitors").innerText="الزوار الحاليين: "+visitorsCount;
+}
+setInterval(updateVisitors,60000);
+
+// ---------------- الوظائف ----------------
+// هنا ستكتب دوال مثل: render(), renderSidebarCategories(), addProductToFirestore(), addReviewToFirestore()
+// و deleteProductFromFirestore(), fetchProducts(), fetchCategories(), fetchReviews()
+// كل هذه الدوال مرتبطة بـ Firebase Firestore و Storage بحيث يظهر للجميع مباشرة
+
+</script>
+
+</body>
+</html>
